@@ -8,10 +8,14 @@ import SwiftUI
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
 
+    private static let escapeKeyCode: UInt16 = 53
+
     private let controller = PowerController()
     private var statusItem: NSStatusItem?
     private let popover = NSPopover()
     private var cancellables = Set<AnyCancellable>()
+    private var outsideClickMonitor: Any?
+    private var escapeKeyMonitor: Any?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
@@ -32,7 +36,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let hosting = NSHostingController(rootView: PopoverView(controller: controller))
         hosting.sizingOptions = .preferredContentSize
         popover.contentViewController = hosting
-        popover.behavior = .transient
+        // Surtout pas « transient » : macOS fermerait lui-même le panneau au
+        // clic sur l'icône, et l'action du bouton, exécutée juste après, le
+        // rouvrirait aussitôt : l'icône ne refermerait jamais rien.
+        popover.behavior = .applicationDefined
         popover.animates = false
 
         // L'icône reflète l'état : pleine quand la veille est bloquée.
@@ -47,18 +54,58 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationWillTerminate(_ notification: Notification) {
+        stopDismissMonitors()
         controller.shutdown()
     }
 
+    // MARK: - Panneau
+
     @objc private func togglePopover() {
-        guard let button = statusItem?.button else { return }
         if popover.isShown {
-            popover.performClose(nil)
+            closePopover()
         } else {
-            controller.refreshLoginStatus()
-            popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
-            popover.contentViewController?.view.window?.makeKey()
-            NSApp.activate(ignoringOtherApps: true)
+            showPopover()
+        }
+    }
+
+    private func showPopover() {
+        guard let button = statusItem?.button else { return }
+        controller.refreshLoginStatus()
+        popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
+        popover.contentViewController?.view.window?.makeKey()
+        NSApp.activate(ignoringOtherApps: true)
+        startDismissMonitors()
+    }
+
+    private func closePopover() {
+        stopDismissMonitors()
+        popover.performClose(nil)
+    }
+
+    /// Le mode « applicationDefined » laisse la fermeture à notre charge :
+    /// clic dans une autre app (les moniteurs globaux ignorent nos propres
+    /// clics, donc ni l'icône ni le panneau ne déclenchent ceci) ou touche Échap.
+    private func startDismissMonitors() {
+        stopDismissMonitors()
+        outsideClickMonitor = NSEvent.addGlobalMonitorForEvents(
+            matching: [.leftMouseDown, .rightMouseDown, .otherMouseDown]) { [weak self] _ in
+                self?.closePopover()
+            }
+        escapeKeyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+            guard event.keyCode == AppDelegate.escapeKeyCode else { return event }
+            self?.closePopover()
+            return nil
+        }
+    }
+
+    private func stopDismissMonitors() {
+        if let monitor = outsideClickMonitor {
+            NSEvent.removeMonitor(monitor)
+            outsideClickMonitor = nil
+        }
+        if let monitor = escapeKeyMonitor {
+            NSEvent.removeMonitor(monitor)
+            escapeKeyMonitor = nil
         }
     }
 }
