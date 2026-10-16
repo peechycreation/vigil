@@ -4,9 +4,11 @@
 
 ## Features
 
-- One-click toggle that prevents your Mac from going to sleep
-- Timer from 15 minutes to 8 hours, with live countdown, progress bar and end time
-- Optional: put the Mac to sleep automatically when the timer ends
+- One switch to keep your Mac awake, for as long as you want
+- Timer from 15 minutes to 8 hours, or any number of minutes you type
+- The timer counts **inactivity**: as long as you keep using the Mac, it starts over. It only runs out once you have walked away (you can turn this off)
+- Optional: put the Mac to sleep when the timer runs out
+- Lid-closed mode: screen off, Mac still working, for example while a coding agent runs
 - Launch at login
 - Native SwiftUI panel, universal binary (Apple Silicon + Intel), zero dependencies
 
@@ -22,6 +24,20 @@ xattr -d com.apple.quarantine /Applications/Vigil.app
 ```
 
 Requires macOS 13 or later.
+
+## Lid-closed mode
+
+Tick "Continuer capot fermé, écran éteint" to keep the Mac running with the lid closed and the screen off. The screen turns off as soon as the session starts. In this mode the timer is a plain countdown (activity cannot reset it).
+
+macOS only allows this through `pmset disablesleep`, which needs root. Run this once (it asks for your password), then review what it did:
+
+```bash
+printf '%s ALL=(root) NOPASSWD: /usr/bin/pmset -a disablesleep 1, /usr/bin/pmset -a disablesleep 0\n' "$(id -un)" > /tmp/vigil-sudoers && sudo visudo -cf /tmp/vigil-sudoers && sudo install -m 440 -o root -g wheel /tmp/vigil-sudoers /etc/sudoers.d/vigil
+```
+
+It installs `/etc/sudoers.d/vigil`, which lets your user account run `pmset -a disablesleep 1` and `pmset -a disablesleep 0` without a password. Any program running as you can use that rule too. Remove it with `sudo rm /etc/sudoers.d/vigil`.
+
+Vigil restores normal sleep when the session ends, when you quit, and at its next launch if it was killed. On battery it stops below 10%. A closed Mac that keeps working gets warm: leave it on a hard surface, never in a bag. If sleep ever stays disabled, run `sudo pmset -a disablesleep 0`.
 
 ## Command line
 

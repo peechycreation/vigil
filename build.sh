@@ -7,7 +7,7 @@ APP="build/Vigil.app"
 rm -rf "build/Vigil.app" "build/Vigil-arm64" "build/Vigil-x86_64"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 
-SOURCES=(Sources/main.swift Sources/PowerController.swift Sources/PopoverView.swift)
+SOURCES=(Sources/main.swift Sources/PowerController.swift Sources/PopoverView.swift Sources/LidMode.swift)
 swiftc -O -target arm64-apple-macos13.0  -o build/Vigil-arm64  "${SOURCES[@]}"
 swiftc -O -target x86_64-apple-macos13.0 -o build/Vigil-x86_64 "${SOURCES[@]}"
 lipo -create -output "$APP/Contents/MacOS/Vigil" \
