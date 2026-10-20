@@ -148,7 +148,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     }
 
     private func log(_ message: String) {
-        Self.logger.debug("\(message, privacy: .public)")
+        Self.logger.notice("\(message, privacy: .public)")
     }
 }
 

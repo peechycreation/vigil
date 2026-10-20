@@ -2,6 +2,7 @@ import AppKit
 import Combine
 import CoreGraphics
 import IOKit.pwr_mgt
+import os
 import ServiceManagement
 
 /// Cœur de Vigil : assertion anti-veille, minuteur d'inactivité, mise en
@@ -41,6 +42,7 @@ final class PowerController: ObservableObject {
     /// Mode capot fermé : écran éteint, le Mac continue de tourner rabat baissé.
     @Published var lidClosedMode: Bool {
         didSet {
+            Self.log.notice("option capot fermé = \(self.lidClosedMode, privacy: .public)")
             defaults.set(lidClosedMode, forKey: Self.lidClosedModeKey)
             if isAwake { reacquire() }
         }
@@ -70,6 +72,9 @@ final class PowerController: ObservableObject {
     private static let activityDebounce: TimeInterval = 2
 
     private let defaults = UserDefaults.standard
+    /// Journal conservé (niveau notice) : lisible après coup avec
+    /// /usr/bin/log show --predicate 'subsystem == "fr.peechy.vigil"'
+    private static let log = Logger(subsystem: "fr.peechy.vigil", category: "minuteur")
     private var assertionID = IOPMAssertionID(0)
     private var tick: Timer?
     private var wakeObserver: NSObjectProtocol?
@@ -170,14 +175,17 @@ final class PowerController: ObservableObject {
     // MARK: - Mode capot fermé
 
     private func startLidMode() {
+        Self.log.notice("capot fermé : activation demandée, autorisé=\(LidMode.isAuthorized, privacy: .public)")
         guard LidMode.isAuthorized else {
             notice = "Capot fermé : autorisation à installer une fois (voir le README). En attendant, le Mac s'endort rabat baissé."
             return
         }
         guard LidMode.setSleepDisabled(true) else {
+            Self.log.error("capot fermé : pmset disablesleep 1 refusé")
             notice = "macOS a refusé de couper la veille. Le Mac s'endort rabat baissé."
             return
         }
+        Self.log.notice("capot fermé : veille système coupée")
         defaults.set(true, forKey: Self.sleepDisabledKey)
         isLidModeActive = true
         ensureTick()
@@ -195,8 +203,10 @@ final class PowerController: ObservableObject {
     private func restoreSleepIfLeftDisabled() {
         guard defaults.bool(forKey: Self.sleepDisabledKey) else { return }
         if LidMode.setSleepDisabled(false) {
+            Self.log.notice("capot fermé : veille système rétablie")
             defaults.set(false, forKey: Self.sleepDisabledKey)
         } else {
+            Self.log.error("capot fermé : pmset disablesleep 0 refusé")
             notice = "Veille non rétablie. Dans le Terminal : sudo pmset -a disablesleep 0"
         }
     }
@@ -213,11 +223,13 @@ final class PowerController: ObservableObject {
 
     /// Un deuxième clic sur la durée déjà en cours arrête le minuteur.
     func toggleTimer(seconds: TimeInterval) {
+        let before = "awake=\(isAwake) durée=\(timerDuration.map { Int($0) } ?? 0)"
         if timerDuration == seconds {
             stopTimer()
         } else {
             startTimer(seconds: seconds)
         }
+        Self.log.notice("clic durée \(Int(seconds), privacy: .public) s : avant \(before, privacy: .public) ; après awake=\(self.isAwake, privacy: .public) durée=\(self.timerDuration.map { Int($0) } ?? 0, privacy: .public)")
     }
 
     func startTimer(seconds: TimeInterval) {

@@ -79,10 +79,13 @@ struct PopoverView: View {
                         .font(.headline)
                         .contentTransition(.numericText(countsDown: true))
                         .id("title")
+                    // Deux lignes toujours réservées : la carte garde la même
+                    // hauteur dans tous les états, la grille des durées ne
+                    // bouge jamais sous le curseur entre un clic et le suivant.
                     Text(stateDetail)
                         .font(.caption)
                         .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
+                        .lineLimit(2, reservesSpace: true)
                         .contentTransition(.opacity)
                 }
                 Spacer(minLength: 8)
@@ -184,17 +187,10 @@ struct PopoverView: View {
 
     private func timerButton(label: String, seconds: TimeInterval) -> some View {
         let isSelected = controller.timerDuration == seconds
-        return Button {
+        return Button(label) {
             controller.toggleTimer(seconds: seconds)
-        } label: {
-            Text(label)
-                .font(.callout.weight(isSelected ? .semibold : .regular))
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 6)
-                .modifier(GlassChip(isSelected: isSelected))
-                .contentShape(RoundedRectangle(cornerRadius: 8))
         }
-        .buttonStyle(PressableChip())
+        .buttonStyle(ChipStyle(isSelected: isSelected))
         .help(isSelected ? "Cliquer à nouveau arrête le minuteur" : "Rester éveillé \(label)")
     }
 
@@ -297,11 +293,19 @@ struct PopoverView: View {
     }
 }
 
-/// Retour de pression : la pastille s'enfonce légèrement, 120 ms, et revient.
-private struct PressableChip: ButtonStyle {
+/// Pastille de durée. Le style dessine toute la surface (verre compris) et
+/// déclare la zone de contact sur cette surface entière : le clic ne dépend
+/// ni de la taille du texte ni du rendu du verre. Retour de pression : léger
+/// enfoncement, 120 ms.
+private struct ChipStyle: ButtonStyle {
+    let isSelected: Bool
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
+            .font(.callout.weight(isSelected ? .semibold : .regular))
+            .foregroundStyle(isSelected ? Color.white : Color.primary)
+            .frame(maxWidth: .infinity, minHeight: 30)
+            .modifier(GlassChip(isSelected: isSelected))
             .contentShape(Rectangle())
             .scaleEffect(configuration.isPressed && !reduceMotion ? 0.96 : 1)
             .opacity(configuration.isPressed ? 0.85 : 1)
@@ -331,7 +335,6 @@ private struct GlassChip: ViewModifier {
     func body(content: Content) -> some View {
         if #available(macOS 26.0, *) {
             content
-                .foregroundStyle(isSelected ? Color.white : Color.primary)
                 .glassEffect(
                     isSelected ? .regular.tint(.accentColor) : .regular,
                     in: .rect(cornerRadius: 8))
@@ -340,7 +343,6 @@ private struct GlassChip: ViewModifier {
                 .background(
                     RoundedRectangle(cornerRadius: 8)
                         .fill(isSelected ? Color.accentColor : Color.primary.opacity(0.07)))
-                .foregroundStyle(isSelected ? Color.white : Color.primary)
         }
     }
 }
